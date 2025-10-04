@@ -1,0 +1,16 @@
+# Node & build
+node_modules
+dist
+.vite
+.DS_Store
+
+# Env
+.env
+.env.local
+
+# Editor configs
+.vscode
+.idea
+
+# OS files
+Thumbs.db
