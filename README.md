@@ -1,16 +1,29 @@
-# React + Vite
+# 🪶 Roast Daily
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A fun & witty roast generator built with **React + Vite + TailwindCSS**.  
+Generate random roasts or AI-style personalized burns, and share them with friends on WhatsApp.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Tech Stack
+- **React 18** + **Vite**
+- **TailwindCSS 3**
+- Local **AI-style text generator**
+- Multilingual (English 🇬🇧 / Romanian 🇷🇴)
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🧩 Features
+- 🔀 Random roast generator (light, medium, savage)
+- 🤖 AI-style personalized roasts
+- ☕ "Buy me a coffee" donation link — [buymeacoffee.com/cipicip7q](https://buymeacoffee.com/cipicip7q)
+- 📱 One-tap share to WhatsApp
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🧠 Run locally
+```bash
+git clone https://github.com/cipi-git/roast-daily.git
+cd roast-daily
+npm install
+npm run dev
