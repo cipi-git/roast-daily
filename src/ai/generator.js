@@ -1,288 +1,125 @@
-// src/ai/generator.js
-// AI-like roast generator with compositional templates, synonyms & no-repeat memory.
+const DEFAULTS = { maxChars: 220, maxSentences: 2 };
+const PROXY_URL = import.meta.env.VITE_AI_PROXY_URL || "http://localhost:5080/ai/roast";
 
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-const personFallback = (lang) => (lang === "en" ? "your friend" : "prietenul tău");
+const localeHints = {
+  ro: "Scrie un roast scurt spre mediu (max 2 propoziții, sub 220 de caractere). Fără emoji, hashtag-uri sau ghilimele.",
+  en: "Write a short-to-medium roast (max 2 sentences, under 220 characters). No emojis, hashtags, or quotes."
+};
 
-// Keep recent outputs per (lang|variant) to avoid repeats
-const recentMap = new Map();
-const MAX_RECENT = 10;
-const keyFor = (lang, variant) => `${lang}|${variant}`;
+const variantHints = {
+  light: "tone: playful, gentle tease",
+  medium: "tone: witty, a bit spicy",
+  savage: "tone: harsh but safe; no slurs",
+  smart: "tone: clever wordplay, concise",
+  personal: "tone: personal; include the provided name naturally"
+};
 
-function pushRecent(lang, variant, text) {
-  const k = keyFor(lang, variant);
-  const list = recentMap.get(k) || [];
-  list.unshift(text);
-  while (list.length > MAX_RECENT) list.pop();
-  recentMap.set(k, list);
-}
-function isRecent(lang, variant, text) {
-  const k = keyFor(lang, variant);
-  const list = recentMap.get(k) || [];
-  return list.includes(text);
-}
+const pool = {
+  ro: [
+    "Ai Wi-Fi cu parolă greșită și idei pe modul avion.",
+    "Promiți de mâine, dar calendarul tău e în buclă de snooze.",
+    "Ești progres bar la 99% din 2010, update-ul vine „imediat”.",
+    "Îți faci backup doar la scuze și restore la amânări.",
+    "Îți încarci motivația la priză de decor."
+  ],
+  en: [
+    "You’re a progress bar at 99% since 2010—update ‘coming soon’.",
+    "Your goals are on airplane mode; excuses have full signal.",
+    "All cache, no content; you refresh only the excuses tab.",
+    "You RSVP to effort with ‘maybe’ and ghost the follow-up.",
+    "Motivation plugged into a dead outlet."
+  ]
+};
 
-// Lightweight lexical mutation
-function mutate(text, swaps) {
-  let out = text;
-  swaps.forEach(([from, alts]) => {
-    if (Math.random() < 0.6) {
-      const alt = pick(alts);
-      const re = new RegExp(`\\b${from}\\b`, "gi");
-      out = out.replace(re, alt);
+const clean = (s) => String(s || "").replace(/\s+/g, " ").replace(/^["'“”‘’]|["'“”‘’]$/g, "").trim();
+
+const firstSentences = (s, n) => {
+  const parts = clean(s).split(/(?<=[.!?…])\s+/);
+  return parts.slice(0, Math.max(1, n || 1)).join(" ").trim();
+};
+
+const cutAt = (s, max) => {
+  const limit = Math.max(40, max || DEFAULTS.maxChars);
+  if (s.length <= limit) return s;
+  let cut = s.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  if (lastSpace > 60) cut = cut.slice(0, lastSpace);
+  return cut.replace(/[,:;–-]\s*$/, "").trim() + "…";
+};
+
+const ensureName = (text, friendName) => {
+  const out = clean(text);
+  if (!friendName) return out;
+  const has = new RegExp(`\\b${friendName}\\b`, "i").test(out);
+  return has ? out : `${friendName}, ${out}`;
+};
+
+async function callModel({ prompt, lang }) {
+  const body = JSON.stringify({ prompt, lang });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body
+      });
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        const wait = Number(data?.retryAfter || 10);
+        if (attempt === 0) {
+          await new Promise(r => setTimeout(r, wait * 1000));
+          continue;
+        }
+        return "";
+      }
+      if (!res.ok) throw new Error("bad status");
+      const data = await res.json();
+      return data.text || data.output || data.result || "";
+    } catch {
+      if (attempt === 0) continue;
+      return "";
     }
-  });
-  return out;
+  }
+  return "";
 }
 
-const bank = {
-  ro: {
-    // building blocks
-    intros: [
-      "[name], sincer,",
-      "Știi ceva, [name]?",
-      "Real vorbind, [name],",
-      "Pe bune, [name],",
-      "Fără supărare, [name],",
-    ],
-    observations: {
-      light: [
-        "pari gata de treabă, dar cred că e doar lumina bună",
-        "ai energia unui luni dimineață după vacanță",
-        "ai și azi o relație serioasă cu butonul de amânare",
-        "te miști cu grația unui progres bar blocat la 99%",
-        "ai pornit în forță… spre pauză",
-      ],
-      medium: [
-        "tastatura ta face mai mult zgomot decât livrabilele tale",
-        "ai optimizat perfect tot ce ține de amânare",
-        "ai multe tab-uri deschise și puține task-uri închise",
-        "calendarul urlă, dar [work] e pe silențios",
-        "ai pus [work] pe modul avion și ai pierdut și telecomanda",
-      ],
-      savage: [
-        "ești dovada vie că evoluția are buton de rewind",
-        "când zici «lucrez», pare că doar deschizi laptopul și lași gravitația să muncească",
-        "ai carismă cât un fax stricat, dar hey, retro e la modă",
-        "ai redefinit ‘deadline’: ai murit tu, nu el",
-        "ai sprinturi în care alergi doar după scuze",
-      ],
-      smart: [
-        "ai talentul bine țintit de a ține 20 de tab-uri deschise și zero rezultate",
-        "browserul merge, dar [work] parcă nu prinde semnal",
-        "agenda are alarme, însă [work] e pe Do Not Disturb",
-        "ai un throughput selectiv: doar pe pauze",
-        "ai workflow-ul unei pisici la soare: impecabil de lent",
-      ],
-      lightAI: [
-        "dacă ai fi aplicație, ai fi mereu pe sleep mode",
-        "ai vibe de stand-by premium",
-        "pare că rulezi în background cu 2% CPU",
-        "ai licență full pe amânare, trial pe acțiune",
-      ],
-      mediumAI: [
-        "ai setat [work] pe throttling sever",
-        "ai un build mereu la 99% și niciodată ‘done’",
-        "ești compatibil doar cu shortcut-ul de snooze",
-        "ai optimizat latența la decizie, nu și rezultatul",
-      ],
-      savageAI: [
-        "ai un benchmark sub nivelul modemului dial-up",
-        "dacă ar exista KPI la scuze, ai fi unicorn",
-        "ai latency emoțional și jitter profesional",
-        "ai făcut out-source la motivație către nimeni",
-      ],
-      personalAI: [
-        "dacă motivația te-ar căuta, te-ar lăsa pe seen",
-        "ambitia ta e pe silent și cred că ai uitat pinul",
-        "checklist-ul tău are un singur item: «amân până mâine»",
-        "ai dat snooze la viață cu repeat",
-      ],
-    },
-    pivots: [
-      "—",
-      "…",
-      " și ",
-      ", dar ",
-      "; totuși ",
-    ],
-    punches: [
-      "hai, fă un task mic și promitem că râdem mai puțin",
-      "dă un ship mic — orice — și după mai glumim",
-      "apasă «Save progress», nu doar «Save face»",
-      "apasă «Start» înainte să mai apăsăm noi «Roast»",
-      "hai cu un micro-pas: 5 minute și gata",
-    ],
-    closers: [
-      "Zic cu drag, nu cu ciocanul.",
-      "Prietenos, dar onest.",
-      "Fără supărare — râdem și muncim.",
-      "Ok, unul mic acum și gata.",
-    ],
-    verbs: ["rulezi", "funcționezi", "te miști"],
-    work: ["productivitate", "deadline", "motivație", "to-do"],
-    swaps: [
-      ["task", ["sarcină", "treabă", "punct"]],
-      ["pauză", ["break", "respiro", "pauzică"]],
-      ["amânare", ["snooze", "delay", "întârziere fină"]],
-    ],
-  },
-
-  en: {
-    intros: [
-      "[name], honestly,",
-      "Real talk, [name],",
-      "No offense, [name],",
-      "Be honest with yourself, [name],",
-      "Let’s face it, [name],",
-    ],
-    observations: {
-      light: [
-        "you look ready to work, but that’s just good lighting",
-        "you’ve got a premium subscription to ‘later’",
-        "you move with the elegance of a 99% progress bar",
-        "today’s energy screams ‘break first, tasks later’",
-        "you boot fast… straight into standby",
-      ],
-      medium: [
-        "your keyboard is louder than your shipping rate",
-        "you’ve optimized procrastination to production-level",
-        "so many tabs open, so few tasks closed",
-        "your calendar screams, but [work] is on silent",
-        "you put [work] on airplane mode and lost the phone",
-      ],
-      savage: [
-        "you’re living proof evolution has a rewind button",
-        "when you say “working”, you just open the laptop and let gravity do the rest",
-        "you’ve got the charisma of a broken fax — vintage, not valuable",
-        "you redefined ‘deadline’: it died, you didn’t",
-        "your sprint is just a jog towards excuses",
-      ],
-      smart: [
-        "you’ve mastered the art of 20 tabs open, 0 outcomes",
-        "the browser runs; your [work] doesn’t get signal",
-        "your calendar has alarms, your [work] is on Do Not Disturb",
-        "selective throughput: only on breaks",
-        "workflow like a cat in the sun: impeccably slow",
-      ],
-      lightAI: [
-        "if you were an app, you’d default to sleep mode",
-        "running in background at 2% CPU is still running, I guess",
-        "full license for delay, trial for action",
-        "standby looks great on you — not on your tasks",
-      ],
-      mediumAI: [
-        "you throttled [work] to single digits",
-        "build’s always at 99% — never ‘done’",
-        "compatible only with the snooze shortcut",
-        "optimized decision latency, not outcomes",
-      ],
-      savageAI: [
-        "your benchmark is below dial-up standards",
-        "if excuses were a KPI, you’d be a unicorn",
-        "high emotional latency, professional jitter",
-        "you outsourced motivation to no one",
-      ],
-      personalAI: [
-        "if motivation looked for you, it would leave you on read",
-        "ambition’s on silent and you forgot the pin",
-        "your checklist has one item: “postpone till tomorrow”",
-        "life’s on snooze with daily repeat",
-      ],
-    },
-    pivots: ["—", "…", " and ", ", but ", "; still "],
-    punches: [
-      "ship one tiny thing, then we can laugh again",
-      "press ‘Start’ before we press ‘Roast’",
-      "hit ‘Save progress’, not just ‘Save face’",
-      "five focused minutes — go",
-      "one micro-task now, future you will clap",
-    ],
-    closers: [
-      "Said with a smile.",
-      "Friendly roast, no malice.",
-      "We tease because we care.",
-      "Deal? One tiny step now.",
-    ],
-    verbs: ["run", "operate", "move"],
-    work: ["productivity", "deadline", "motivation", "to-do list"],
-    swaps: [
-      ["task", ["item", "thing", "ticket"]],
-      ["break", ["pause", "breather", "timeout"]],
-      ["delay", ["stall", "postpone", "lag"]],
-    ],
-  },
-};
-
-// Map variants to composition pools
-const variantMap = {
-  ro: {
-    light: (L) => [L.observations.light],
-    medium: (L) => [L.observations.medium],
-    savage: (L) => [L.observations.savage],
-    smart: (L) => [L.observations.smart],
-    lightAI: (L) => [L.observations.lightAI],
-    mediumAI: (L) => [L.observations.mediumAI],
-    savageAI: (L) => [L.observations.savageAI],
-    personal: (L) => [L.observations.personalAI],
-  },
-  en: {
-    light: (L) => [L.observations.light],
-    medium: (L) => [L.observations.medium],
-    savage: (L) => [L.observations.savage],
-    smart: (L) => [L.observations.smart],
-    lightAI: (L) => [L.observations.lightAI],
-    mediumAI: (L) => [L.observations.mediumAI],
-    savageAI: (L) => [L.observations.savageAI],
-    personal: (L) => [L.observations.personalAI],
-  },
-};
-
-function composeRoast({ L, name, variant }) {
-  const pools = (variantMap[L === bank.ro ? "ro" : "en"][variant] || variantMap[
-    L === bank.ro ? "ro" : "en"
-  ].smart)(L);
-
-  // Build: intro + observation + optional pivot+observation + punch + closer (30% chance)
-  const intro = pick(L.intros)
-    .replace(/\[name\]/g, name)
-    .replace(/\[verb\]/g, pick(L.verbs));
-
-  // At least one observation, maybe two
-  const obs1 = pick(pools[0]).replace(/\[work\]/g, pick(L.work));
-  const second = Math.random() < 0.35 ? `${pick(L.pivots)} ${pick(pools[0]).replace(/\[work\]/g, pick(L.work))}` : "";
-
-  const punch = pick(L.punches);
-  const closer = Math.random() < 0.35 ? ` ${pick(L.closers)}` : "";
-
-  let text = `${intro} ${obs1}${second ? " " + second : ""}; ${punch}.${closer}`;
-  text = mutate(text, L.swaps);
-  return cap(text);
+function fallback(lang) {
+  const arr = pool[lang] || pool.en;
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function generateAIRoast({
+export async function generateAIRoast({
   lang = "ro",
   variant = "smart",
   friendName = "",
   seed = "",
-}) {
-  const L = bank[lang] || bank.ro;
-  const safeVariant = variant in (variantMap[lang] || {}) ? variant : "smart";
-  const name =
-    (friendName || "").trim() ||
-    (seed && /\[friend\]/.test(seed) ? personFallback(lang) : personFallback(lang));
+  maxChars = DEFAULTS.maxChars,
+  maxSentences = DEFAULTS.maxSentences
+} = {}) {
+  const hint = localeHints[lang] || localeHints.en;
+  const vhint = variantHints[variant] || variantHints.smart;
 
-  // try several times to avoid recent duplicates
-  for (let i = 0; i < 8; i++) {
-    const candidate = composeRoast({ L, name, variant: safeVariant });
-    if (!isRecent(lang, safeVariant, candidate)) {
-      pushRecent(lang, safeVariant, candidate);
-      return candidate;
-    }
-  }
-  // As a fallback, return last try
-  const fallback = composeRoast({ L, name, variant: safeVariant });
-  pushRecent(lang, safeVariant, fallback);
-  return fallback;
+  const prompt = [
+    hint,
+    vhint,
+    friendName ? `Name: ${friendName}` : "",
+    "Address the person directly and include the name naturally.",
+    seed ? `Inspiration: ${seed}` : "",
+    "Return plain text only."
+  ].filter(Boolean).join("\n");
+
+  let txt = await callModel({ prompt, lang });
+  if (!txt) txt = fallback(lang);
+
+  let out = firstSentences(txt, maxSentences);
+  out = cutAt(out, maxChars);
+  out = ensureName(out, friendName);
+  out = clean(out);
+
+  if (!out) out = lang === "ro" ? "Ai Wi-Fi cu parolă greșită." : "Wi-Fi on, ideas off.";
+  return out;
 }
+
+export const nextRoast = generateAIRoast;
+export const getRandomRoast = generateAIRoast;
+export default generateAIRoast;

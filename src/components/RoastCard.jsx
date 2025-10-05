@@ -18,40 +18,117 @@ const aiVariants = (lang) => [
   { key: "personal", label: t(lang, "ai_personal") },
 ];
 
+const lengthPresets = {
+  short: { maxChars: 120, maxSentences: 1, label: "Short" },
+  medium: { maxChars: 180, maxSentences: 2, label: "Medium" },
+  long: { maxChars: 220, maxSentences: 2, label: "Long" },
+};
+
+const noPreviewUrl = (raw) =>
+  raw.replace("dailygenius.app", `dailygenius.\u200Bapp`);
+
 export default function RoastCard({
   lang = "ro",
   initialRoast,
   onGenerateRoast,
-  onGenerateAIRoast, // expects ({variant, friendName, seed})
+  onGenerateAIRoast, // ({ variant, friendName, seed, maxChars, maxSentences })
   onSaveImage,
 }) {
   const [roast, setRoast] = useState(initialRoast || "");
   const [friendName, setFriendName] = useState("");
   const [mode, setMode] = useState("light");
   const [aiVariant, setAiVariant] = useState("smart");
+  const [aiLength, setAiLength] = useState("long");
   const [sent, setSent] = useState(getRoastCount());
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const personalize = (text, name) =>
     name ? text.replace(/\[friend\]/gi, name) : text;
 
   const handleGenerate = async () => {
-    if (mode === "ai") {
-      const next = await onGenerateAIRoast?.({
-        variant: aiVariant,
-        friendName,
-        seed: roast,
-      });
-      if (next) setRoast(next);
-    } else {
-      const base = onGenerateRoast?.(mode);
-      if (base) setRoast(personalize(base, friendName));
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (mode === "ai") {
+        const preset = lengthPresets[aiLength] || lengthPresets.long;
+        const next = await onGenerateAIRoast?.({
+          variant: aiVariant,
+          friendName,
+          seed: roast,
+          maxChars: preset.maxChars,
+          maxSentences: preset.maxSentences,
+        });
+        if (next) setRoast(next);
+      } else {
+        const base = onGenerateRoast?.(mode);
+        if (base) setRoast(personalize(base, friendName));
+      }
+    } finally {
+      setBusy(false);
     }
   };
+
+  const openPopup = (u) =>
+    window.open(u, "_blank", "noopener,noreferrer,width=600,height=540");
+  const currentUrl =
+    typeof window !== "undefined"
+      ? window.location.href
+      : "https://dailygenius.app/";
 
   const handleWhatsApp = () => {
     openWhatsApp(roast, lang);
     setSent(bumpRoastCount(1));
+  };
+  const handleFacebook = () => {
+    openPopup(
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+        currentUrl
+      )}`
+    );
+    setSent(bumpRoastCount(1));
+  };
+  const handleTwitter = () => {
+    openPopup(
+      `https://twitter.com/intent/tweet?url=${encodeURIComponent(
+        currentUrl
+      )}&text=${encodeURIComponent(roast)}`
+    );
+    setSent(bumpRoastCount(1));
+  };
+
+  const handleMessenger = async () => {
+    const message = `${roast}\n${noPreviewUrl(currentUrl)}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Roast Daily", text: message });
+        setSent(bumpRoastCount(1));
+        return;
+      }
+    } catch {}
+    try {
+      await copyToClipboard(message);
+      alert("Mesaj copiat — deschide Messenger și lipește.");
+    } catch {}
+    openPopup("https://www.messenger.com/");
+    setSent(bumpRoastCount(1));
+  };
+
+  const handleNativeShare = async () => {
+    const message = `${roast}\n${currentUrl}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Roast Daily",
+          text: message,
+          url: undefined,
+        });
+      } else {
+        await copyToClipboard(message);
+        alert("Link copiat!");
+      }
+      setSent(bumpRoastCount(1));
+    } catch {}
   };
 
   const handleCopy = async () => {
@@ -65,7 +142,6 @@ export default function RoastCard({
 
   return (
     <div className="mx-auto w-full rounded-3xl bg-white p-6 shadow-xl ring-1 ring-zinc-200">
-      {/* Controls */}
       <div className="flex flex-wrap items-center justify-center gap-3">
         <input
           type="text"
@@ -75,7 +151,6 @@ export default function RoastCard({
           className="w-full max-w-xs rounded-xl border border-zinc-300 bg-white px-3 py-2 text-zinc-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-400"
         />
 
-        {/* Base mode selector */}
         <div className="inline-flex rounded-full bg-white p-1 ring-1 ring-zinc-200">
           {modes.map((m) => {
             const active = mode === m.key;
@@ -97,42 +172,54 @@ export default function RoastCard({
           })}
         </div>
 
-        {/* AI sub-mode selector */}
         {mode === "ai" && (
-          <select
-            value={aiVariant}
-            onChange={(e) => setAiVariant(e.target.value)}
-            className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-zinc-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-400"
-            aria-label={t(lang, "ai_select_label")}
-          >
-            {variants.map((v) => (
-              <option key={v.key} value={v.key}>
-                {v.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={aiVariant}
+              onChange={(e) => setAiVariant(e.target.value)}
+              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-zinc-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-400"
+              aria-label={t(lang, "ai_select_label")}
+            >
+              {variants.map((v) => (
+                <option key={v.key} value={v.key}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={aiLength}
+              onChange={(e) => setAiLength(e.target.value)}
+              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-zinc-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-400"
+              aria-label="Length"
+            >
+              {Object.entries(lengthPresets).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
 
-      {/* Roast text */}
       <div className="mt-4 rounded-2xl bg-zinc-50 p-5 text-center text-lg leading-relaxed text-zinc-900 ring-1 ring-zinc-200">
         {roast}
       </div>
 
-      {/* Stats */}
       <div className="mt-3 flex items-center justify-center gap-2 text-sm text-zinc-600">
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-amber-800 ring-1 ring-amber-200">
           {formatNumber(sent)} {t(lang, "stat_sent_suffix")}
         </span>
       </div>
 
-      {/* Actions */}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <button
           onClick={handleGenerate}
-          className="inline-flex items-center gap-2 rounded-2xl bg-black px-5 py-3 font-semibold text-white shadow-md hover:shadow-lg active:scale-[.98]"
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-2xl bg-black px-5 py-3 font-semibold text-white shadow-md hover:shadow-lg active:scale-[.98] disabled:opacity-50"
         >
-          {t(lang, "btn_generate")}
+          {busy ? "..." : t(lang, "btn_generate")}
         </button>
 
         <button
@@ -140,6 +227,34 @@ export default function RoastCard({
           className="inline-flex items-center gap-2 rounded-2xl bg-green-500 px-5 py-3 font-semibold text-white shadow-md hover:shadow-lg active:scale-[.98]"
         >
           {t(lang, "btn_whatsapp")}
+        </button>
+
+        <button
+          onClick={handleMessenger}
+          className="inline-flex items-center gap-2 rounded-2xl bg-[#00B2FF] px-5 py-3 font-semibold text-white shadow-md hover:shadow-lg active:scale-[.98]"
+        >
+          Messenger (text)
+        </button>
+
+        <button
+          onClick={handleFacebook}
+          className="inline-flex items-center gap-2 rounded-2xl bg-[#1877F2] px-5 py-3 font-semibold text-white shadow-md hover:shadow-lg active:scale-[.98]"
+        >
+          Facebook
+        </button>
+
+        <button
+          onClick={handleTwitter}
+          className="inline-flex items-center gap-2 rounded-2xl bg-black px-5 py-3 font-semibold text-white shadow-md hover:shadow-lg active:scale-[.98]"
+        >
+          X (Twitter)
+        </button>
+
+        <button
+          onClick={handleNativeShare}
+          className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 font-semibold text-zinc-800 shadow-md ring-1 ring-zinc-200 hover:shadow-lg active:scale-[.98]"
+        >
+          Share
         </button>
 
         <button

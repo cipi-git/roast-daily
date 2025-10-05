@@ -3,24 +3,76 @@ import RoastCard from "./components/RoastCard";
 import { roastData } from "./data/roastData.js";
 import { t, LANGS } from "./i18n.js";
 import { generateAIRoast } from "./ai/generator.js";
+import VisitorCounter from "./components/VisitorCounter";
+
+const lsGet = (k, d) => {
+  try {
+    const v = localStorage.getItem(k);
+    return v ? JSON.parse(v) : d;
+  } catch {
+    return d;
+  }
+};
+const lsSet = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {}
+};
 
 export default function App() {
   const [lang, setLang] = useState("ro");
 
-  const onGenerateRoast = (mode = "light") => {
-    const arr = roastData[lang][mode] || roastData[lang].light;
-    return arr[Math.floor(Math.random() * arr.length)];
+  const pickUnique = (arr, key) => {
+    const seenKey = `rd_seen_${key}`;
+    const seen = new Set(lsGet(seenKey, []));
+    if (seen.size >= arr.length) {
+      lsSet(seenKey, []);
+      seen.clear();
+    }
+    let idx = Math.floor(Math.random() * arr.length);
+    let guard = 0;
+    while (seen.has(idx) && guard < 200) {
+      idx = Math.floor(Math.random() * arr.length);
+      guard++;
+    }
+    seen.add(idx);
+    lsSet(seenKey, Array.from(seen));
+    return arr[idx];
   };
 
-  // primește {variant, friendName, seed}
-  const onGenerateAIRoast = ({ variant, friendName, seed }) =>
-    generateAIRoast({ lang, variant, friendName, seed });
+  const onGenerateRoast = (mode = "light") => {
+    const bucket = roastData?.[lang]?.[mode] || roastData?.[lang]?.light || [];
+    const key = `${lang}_${mode}`;
+    if (!bucket.length) return "";
+    return pickUnique(bucket, key);
+  };
+
+  const onGenerateAIRoast = async ({ variant, friendName, seed }) => {
+    const raw = await generateAIRoast({ lang, variant, friendName, seed });
+    const key = `rd_ai_recent_${lang}`;
+    const recent = lsGet(key, []);
+    const exists = recent.includes(raw);
+    if (!exists) {
+      const next = [raw, ...recent].slice(0, 20);
+      lsSet(key, next);
+      return raw;
+    }
+    // dacă s-a repetat exact, mai cerem o dată (o singură încercare)
+    const retry = await generateAIRoast({
+      lang,
+      variant,
+      friendName,
+      seed: raw,
+    });
+    const next = [retry, ...recent].slice(0, 20);
+    lsSet(key, next);
+    return retry;
+  };
 
   const onSaveImage = () => alert("Export image: coming soon!");
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-gradient-to-b from-white via-rose-50 to-amber-50 px-4">
-      {/* Header */}
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 py-6">
         <div className="flex items-center gap-3">
           <span
@@ -68,7 +120,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Hero */}
       <section className="mx-auto max-w-3xl py-4 text-center">
         <h2 className="text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
           {t(lang, "hero_title")}
@@ -78,7 +129,6 @@ export default function App() {
         </p>
       </section>
 
-      {/* Main Card */}
       <section className="mx-auto max-w-3xl py-4">
         <RoastCard
           lang={lang}
@@ -89,7 +139,6 @@ export default function App() {
         />
       </section>
 
-      {/* Features */}
       <section id="features" className="mx-auto max-w-5xl py-10">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
@@ -121,8 +170,15 @@ export default function App() {
         </div>
       </section>
 
-      <footer className="mx-auto max-w-6xl border-t border-zinc-200 py-8 text-center text-sm text-zinc-500">
-        © {new Date().getFullYear()} dailygenius.app · {t(lang, "footer")}
+      <footer className="mx-auto flex max-w-6xl items-center justify-between border-t border-zinc-200 py-8 text-sm text-zinc-500">
+        <span>
+          © {new Date().getFullYear()} dailygenius.app · {t(lang, "footer")}
+        </span>
+        <VisitorCounter
+          namespace="dailygenius.app"
+          counterKey="total_visits"
+          label="Vizite totale"
+        />
       </footer>
     </main>
   );
