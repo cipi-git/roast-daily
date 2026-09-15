@@ -1,29 +1,42 @@
-# 🪶 Roast Daily
+# Roast Daily — AI & Process Automation Lab
 
-A fun & witty roast generator built with **React + Vite + TailwindCSS**.  
-Generate random roasts or AI-style personalized burns, and share them with friends on WhatsApp.
+Roast Daily is a React/Vite application that now also contains a practical **AI Process Automation** prototype.
 
----
+## AI Process Assistant
 
-## 🚀 Tech Stack
-- **React 18** + **Vite**
-- **TailwindCSS 3**
-- Local **AI-style text generator**
-- Multilingual (English 🇬🇧 / Romanian 🇷🇴)
+The project includes an Italian-first assistant that:
+- analyzes a business process;
+- identifies repetitive/manual activities;
+- retrieves relevant internal knowledge from a small local knowledge base (RAG-style retrieval);
+- proposes an automation workflow;
+- highlights risks and next steps;
+- returns structured JSON from the Gemini model.
 
----
+### Architecture
 
-## 🧩 Features
-- 🔀 Random roast generator (light, medium, savage)
-- 🤖 AI-style personalized roasts
-- ☕ "Buy me a coffee" donation link — [buymeacoffee.com/cipicip7q](https://buymeacoffee.com/cipicip7q)
-- 📱 One-tap share to WhatsApp
+`React UI → Express API → retrieval layer → Gemini → structured result`
 
----
+The API key remains server-side in `GEMINI_API_KEY`.
 
-## 🧠 Run locally
+## Tech Stack
+
+- React 18 + Vite
+- TailwindCSS
+- Node.js + Express
+- Google Gemini API
+- REST API
+- JSON structured outputs
+- Lightweight local retrieval / RAG prototype
+
+## Run locally
+
 ```bash
-git clone https://github.com/cipi-git/roast-daily.git
-cd roast-daily
 npm install
 npm run dev
+```
+
+For the AI endpoints, configure `GEMINI_API_KEY` in the server environment.
+
+## Portfolio purpose
+
+This project demonstrates practical experimentation with **generative AI, AI assistants, retrieval, workflow design and business-process automation**, rather than only frontend development.
