@@ -4,6 +4,7 @@ import { roastData } from "./data/roastData.js";
 import { t, LANGS } from "./i18n.js";
 import { generateAIRoast } from "./ai/generator.js";
 import VisitorCounter from "./components/VisitorCounter";
+import ProcessAnalyzer from "./components/ProcessAnalyzer";
 
 const lsGet = (k, d) => {
   try {
@@ -138,6 +139,8 @@ export default function App() {
           onSaveImage={onSaveImage}
         />
       </section>
+
+      <ProcessAnalyzer lang={lang} />
 
       <section id="features" className="mx-auto max-w-5xl py-10">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
