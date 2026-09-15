@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { retrieveRelevantDocuments } = require("./data/processKnowledge.js");
 require("dotenv").config();
 
 const PORT = process.env.PORT || 5080;
@@ -40,7 +41,7 @@ app.post("/ai/analyze-process", async (req, res) => {
     const prompt = `Analyze this business process for automation opportunities.
 Return ONLY valid JSON with this shape:
 {"opportunities":["..."],"automation":"...","impact":"..."}
-Language: ${lang === "ro" ? "Romanian" : "English"}.
+Language: ${lang === "it" ? "Italian" : lang === "ro" ? "Romanian" : "English"}.
 Focus on repetitive/manual steps, data entry, document handling, approvals, notifications and integrations.
 Do not invent facts about the company.
 
