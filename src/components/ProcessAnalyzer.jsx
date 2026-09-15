@@ -1,6 +1,8 @@
 import { useState } from "react";
 
-const PROXY_BASE = (import.meta.env.VITE_AI_PROXY_URL || "http://localhost:8787/ai/roast").replace(/\/ai\/roast\/?$/, "");
+const PROXY_BASE = import.meta.env.VITE_AI_PROXY_URL
+  ? import.meta.env.VITE_AI_PROXY_URL.replace(/\/ai\/roast\/?$/, "")
+  : "";
 
 export default function ProcessAnalyzer({ lang = "it" }) {
   const [process, setProcess] = useState("");
@@ -11,7 +13,8 @@ export default function ProcessAnalyzer({ lang = "it" }) {
   const labels = {
     title: "AI Process Assistant",
     sub: "Analizza un processo aziendale e propone opportunità di automazione, workflow, rischi e prossimi passi.",
-    placeholder: "Es.: Riceviamo le fatture via email, le scarichiamo, controlliamo i dati, li copiamo in Excel e inviamo un report...",
+    placeholder:
+      "Es.: Riceviamo le fatture via email, le scarichiamo, controlliamo i dati, li copiamo in Excel e inviamo un report...",
     button: "Analizza il processo",
     loading: "Analisi in corso...",
     error: "Non è stato possibile analizzare il processo.",
@@ -20,7 +23,7 @@ export default function ProcessAnalyzer({ lang = "it" }) {
     workflow: "Workflow suggerito",
     risks: "Rischi / attenzioni",
     next: "Prossimi passi",
-    sources: "Fonti interne recuperate"
+    sources: "Fonti interne recuperate",
   };
 
   async function analyze() {
@@ -32,7 +35,7 @@ export default function ProcessAnalyzer({ lang = "it" }) {
       const response = await fetch(`${PROXY_BASE}/ai/process-assistant`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ process, lang: "it" })
+        body: JSON.stringify({ process, lang: "it" }),
       });
       if (!response.ok) throw new Error("Request failed");
       setResult(await response.json());
@@ -48,7 +51,9 @@ export default function ProcessAnalyzer({ lang = "it" }) {
       <h3 className="font-semibold">{title}</h3>
       <ul className="mt-3 space-y-2 text-sm text-zinc-200">
         {(items || []).map((item, i) => (
-          <li key={i} className="rounded-xl bg-white/5 p-3">{item}</li>
+          <li key={i} className="rounded-xl bg-white/5 p-3">
+            {item}
+          </li>
         ))}
       </ul>
     </div>
@@ -57,9 +62,13 @@ export default function ProcessAnalyzer({ lang = "it" }) {
   return (
     <section className="mx-auto max-w-5xl py-10">
       <div className="rounded-3xl bg-zinc-950 p-6 text-white shadow-xl ring-1 ring-zinc-800 sm:p-8">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">AI • RAG • AUTOMATION</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+          AI • RAG • AUTOMATION
+        </p>
         <h2 className="text-2xl font-extrabold sm:text-3xl">{labels.title}</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">{labels.sub}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">
+          {labels.sub}
+        </p>
 
         <textarea
           value={process}
@@ -84,7 +93,9 @@ export default function ProcessAnalyzer({ lang = "it" }) {
           <div className="mt-6 space-y-4">
             <div className="rounded-2xl bg-white/10 p-5">
               <h3 className="font-semibold">{labels.summary}</h3>
-              <p className="mt-3 text-sm leading-6 text-zinc-200">{result.summary}</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-200">
+                {result.summary}
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -99,7 +110,10 @@ export default function ProcessAnalyzer({ lang = "it" }) {
                 <h3 className="font-semibold">{labels.sources}</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {result.sources.map((source) => (
-                    <span key={source.id} className="rounded-full bg-white/10 px-3 py-1 text-xs text-zinc-300 ring-1 ring-white/10">
+                    <span
+                      key={source.id}
+                      className="rounded-full bg-white/10 px-3 py-1 text-xs text-zinc-300 ring-1 ring-white/10"
+                    >
                       {source.title}
                     </span>
                   ))}
