@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+const PROXY_BASE = (import.meta.env.VITE_AI_PROXY_URL || "http://localhost:8787/ai/roast").replace(/\/ai\/roast\/?$/, "");
+
 export default function ProcessAnalyzer({ lang = "it" }) {
   const [process, setProcess] = useState("");
   const [result, setResult] = useState(null);
@@ -14,7 +16,7 @@ export default function ProcessAnalyzer({ lang = "it" }) {
     if (!process.trim()) return;
     setLoading(true); setError(""); setResult(null);
     try {
-      const response = await fetch("/ai/process-assistant", {
+      const response = await fetch(`${PROXY_BASE}/ai/process-assistant`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ process, lang: "it" })
