@@ -24,6 +24,42 @@ function rateLimited() {
   return false;
 }
 
+app.post("/ai/analyze-process", async (req, res) => {
+  try {
+    if (!API_KEY) return res.status(503).json({ error: "AI service is not configured" });
+    if (rateLimited()) {
+      return res.status(429).json({ error: "rate_limited", retryAfter: 10 });
+    }
+    const { process, lang = "en" } = req.body || {};
+    if (!process || process.trim().length < 10) {
+      return res.status(400).json({ error: "A process description is required" });
+    }
+
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: MODEL_ID });
+    const prompt = `Analyze this business process for automation opportunities.
+Return ONLY valid JSON with this shape:
+{"opportunities":["..."],"automation":"...","impact":"..."}
+Language: ${lang === "ro" ? "Romanian" : "English"}.
+Focus on repetitive/manual steps, data entry, document handling, approvals, notifications and integrations.
+Do not invent facts about the company.
+
+Process:
+${process.trim()}`;
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text().trim().replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "");
+    const parsed = JSON.parse(raw);
+    return res.json({
+      opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities.slice(0, 6) : [],
+      automation: String(parsed.automation || ""),
+      impact: String(parsed.impact || ""),
+    });
+  } catch (e) {
+    console.error("Process analysis error:", e?.message || e);
+    return res.status(500).json({ error: "process_analysis_failed" });
+  }
+});
+
 app.post("/ai/roast", async (req, res) => {
   try {
     if (!API_KEY) return res.json({ text: "" });
