@@ -21,7 +21,7 @@ const KNOWLEDGE_BASE = [
   }
 ];
 
-export function retrieveRelevantDocuments(query, limit = 3) {
+function retrieveRelevantDocuments(query, limit = 3) {
   const tokens = String(query || "").toLowerCase().split(/[^a-zàèéìòù0-9]+/).filter(t => t.length > 3);
   return KNOWLEDGE_BASE
     .map(doc => ({
@@ -33,3 +33,5 @@ export function retrieveRelevantDocuments(query, limit = 3) {
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+
+module.exports = { retrieveRelevantDocuments };
